@@ -4,6 +4,9 @@
     "modules": ["ExpoZebraScannerModule"]
   },
   "android": {
-    "modules": ["expo.modules.zebrascanner.ExpoZebraScannerModule"]
+    "modules": [
+      "expo.modules.zebrascanner.ExpoZebraScannerModule",
+      "expo.modules.zebrascanner.ExpoZebraRfidModule"
+    ]
   }
 }

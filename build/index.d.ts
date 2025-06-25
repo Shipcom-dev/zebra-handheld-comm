@@ -17,5 +17,7 @@ export declare function sendActionCommand(extraName: string, extraData: Broadcas
  * @param param.PARAM_LIST - Optional scanner params: https://techdocs.zebra.com/datawedge/6-3/guide/api/setconfig/#scannerinputparameters
  */
 export declare function createIntentDatawedgeProfile({ PROFILE_NAME, PACKAGE_NAME, }: CreateProfileData): void;
+export { default as ExpoZebraRfidModule } from './ExpoZebraRfidModule';
+export type { RfidResponse, RfidSignalStrengthEvent, RfidLocateTagEvent, RfidConnectionEvent, } from './ExpoZebraRfidModule';
 export { BroadcastExtras, BroadcastEvent };
 //# sourceMappingURL=index.d.ts.map

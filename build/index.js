@@ -66,4 +66,6 @@ export function createIntentDatawedgeProfile({ PROFILE_NAME, PACKAGE_NAME, }) {
         ],
     });
 }
+// Export RFID module and types
+export { default as ExpoZebraRfidModule } from './ExpoZebraRfidModule';
 //# sourceMappingURL=index.js.map

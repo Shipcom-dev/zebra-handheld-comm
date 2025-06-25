@@ -1,5 +1,6 @@
 import { EventSubscription } from 'expo-modules-core';
 import ExpoZebraScannerModule from './ExpoZebraScannerModule';
+import ExpoZebraRfidModule from './ExpoZebraRfidModule';
 import { BarcodeEvent } from './ExpoZebraScannerEvent';
 import { BroadcastEvent, BroadcastExtras } from './ExpoZebraBroadcastEvent';
 import {
@@ -92,5 +93,14 @@ export function createIntentDatawedgeProfile({
     ],
   });
 }
+
+// Export RFID module and types
+export { default as ExpoZebraRfidModule } from './ExpoZebraRfidModule';
+export type {
+  RfidResponse,
+  RfidSignalStrengthEvent,
+  RfidLocateTagEvent,
+  RfidConnectionEvent,
+} from './ExpoZebraRfidModule';
 
 export { BroadcastExtras, BroadcastEvent };

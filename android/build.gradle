@@ -10,10 +10,33 @@ useCoreDependencies()
 useDefaultAndroidSdkVersions()
 useExpoPublishing()
 
+repositories {
+  flatDir {
+    dirs "$projectDir/libs"
+  }
+  google()
+  mavenCentral()
+}
+
 android {
   namespace "expo.modules.zebrascanner"
   defaultConfig {
     versionCode 5
     versionName "5.0.0"
   }
+}
+
+dependencies {
+  // Zebra RFID SDK AAR dependencies
+  implementation files('libs/API3_ASCII-release-2.0.4.192.aar')
+  implementation files('libs/API3_CMN-release-2.0.4.192.aar')
+  implementation files('libs/API3_INTERFACE-release-2.0.4.192.aar')
+  implementation files('libs/API3_NGE-protocolrelease-2.0.4.192.aar')
+  implementation files('libs/API3_NGE-Transportrelease-2.0.4.192.aar')
+  implementation files('libs/API3_NGEUSB-Transportrelease-2.0.4.192.aar')
+  implementation files('libs/API3_READER-release-2.0.4.192.aar')
+  implementation files('libs/API3_TRANSPORT-release-2.0.4.192.aar')
+  implementation files('libs/rfidhostlib.aar')
+  implementation files('libs/rfidseriallib.aar')
+  implementation files('libs/BarcodeScannerLibrary-release-28.aar')
 }
