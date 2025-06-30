@@ -16,12 +16,12 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
   
   // RFID SDK components (following MAUI SDK pattern exactly)
   private var readers: Readers? = null
-  private var rfidReader: RFIDReader? = null
-  private var readerDevice: ReaderDevice? = null
+    private var rfidReader: RFIDReader? = null
+    private var readerDevice: ReaderDevice? = null
   private var isLocating = false
   private var targetTagId: String? = null
-
-  override fun definition() = ModuleDefinition {
+    
+    override fun definition() = ModuleDefinition {
 
     Name("ExpoZebraRfidModule")
     
@@ -33,7 +33,7 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
         Log.d(TAG, "Hello function called with name: $name")
         
         val response = mapOf(
-          "status" to "success",
+                    "status" to "success",
           "message" to "Hello, $name! RFID module is working correctly.",
           "timestamp" to System.currentTimeMillis(),
           "moduleVersion" to "1.0.0"
@@ -59,25 +59,25 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
         }
         
         // Get available readers list
-        val availableReaders = readers?.GetAvailableRFIDReaderList()
+                val availableReaders = readers?.GetAvailableRFIDReaderList()
         Log.d(TAG, "Available readers count: ${availableReaders?.size ?: 0}")
         
         if (availableReaders != null && availableReaders.isNotEmpty()) {
           // Connect to first available reader (following MAUI pattern)
-          readerDevice = availableReaders[0]
+                readerDevice = availableReaders[0]
           rfidReader = readerDevice?.getRFIDReader()
           
           Log.d(TAG, "Attempting to connect to reader: ${readerDevice?.getName()}")
           
           // Connect to reader (following MAUI ReaderModel.ConnectReaderSync())
-          rfidReader?.connect()
-          
+                rfidReader?.connect()
+                
           // Configure reader if connected (following MAUI ConfigureReader())
-          if (rfidReader?.isConnected == true) {
+                if (rfidReader?.isConnected == true) {
             configureReader()
             
             val response = mapOf(
-              "status" to "success",
+                        "status" to "success",
               "message" to "RFID reader connected successfully: ${readerDevice?.getName()}",
               "isConnected" to true,
               "readerModel" to (readerDevice?.getName() ?: "Unknown"),
@@ -86,7 +86,7 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
             
             Log.d(TAG, "RFID reader connected successfully")
             promise.resolve(response)
-          } else {
+                } else {
             throw Exception("Failed to establish connection to RFID reader")
           }
         } else {
@@ -105,10 +105,10 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
         Log.d(TAG, "getCurrentStatus function called")
         
         val response = mapOf(
-          "status" to "success",
+                        "status" to "success",
           "isConnected" to (rfidReader?.isConnected ?: false),
           "isLocating" to isLocating,
-          "targetTagId" to targetTagId,
+                        "targetTagId" to targetTagId,
           "readerModel" to (readerDevice?.getName() ?: "Unknown"),
           "timestamp" to System.currentTimeMillis()
         )
@@ -142,7 +142,7 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
         Log.d(TAG, "TagLocationing.Perform() called successfully for tag: $tagId")
         
         val response = mapOf(
-          "status" to "success",
+                        "status" to "success",
           "message" to "Locate tag mode started for tag: $tagId",
           "targetTagId" to tagId,
           "isLocating" to true,
@@ -178,11 +178,11 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
         targetTagId = null
         
         val response = mapOf(
-          "status" to "success",
+                    "status" to "success",
           "message" to "Locate tag mode stopped successfully",
           "isLocating" to false,
-          "timestamp" to System.currentTimeMillis()
-        )
+                    "timestamp" to System.currentTimeMillis()
+                )
         
         Log.d(TAG, "stopLocateTag responding with: $response")
         promise.resolve(response)
@@ -267,27 +267,35 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
           for (tag in tags) {
             Log.d(TAG, "Checking tag: ${tag.tagID} vs target: $targetTagId")
             
-            if (tag.tagID == targetTagId) {
-              Log.d(TAG, "Found target tag! LocationInfo available: ${tag.LocationInfo != null}")
+            // CRITICAL FIX: In locate mode, LocationInfo presence indicates we found the target tag
+            // The tag.tagID can be null in locate mode, but LocationInfo means we found our target
+            if (tag.LocationInfo != null) {
+              Log.d(TAG, "=== LOCATE MODE: Found target tag with LocationInfo ===")
               
-              // Found target tag - emit signal strength event (even without LocationInfo)
-              // Using exact 123RFID algorithm: (rssi + 72) * 2 with -72 to -22 clamps
+              // Use RelativeDistance directly from LocationInfo (this is the 123RFID algorithm output)
+              val relativeDistance = tag.LocationInfo.relativeDistance.toInt()
               val rssi = tag.peakRSSI.toInt()
-              var clampedRssi = rssi
-              if (rssi < -72) clampedRssi = -72
-              if (rssi > -22) clampedRssi = -22
-              val signalStrength = (clampedRssi + 72) * 2
               
-              Log.d(TAG, "Located tag ${tag.tagID} - RSSI: $rssi, ClampedRSSI: $clampedRssi, SignalStrength: $signalStrength")
+              // The RelativeDistance from LocationInfo is already the 1-100 signal strength
+              // This matches exactly what 123RFID Mobile app shows
+              val signalStrength = relativeDistance
               
+              Log.d(TAG, "=== SIGNAL STRENGTH CALCULATION ===")
+              Log.d(TAG, "Raw RSSI: $rssi")
+              Log.d(TAG, "RelativeDistance from LocationInfo: $relativeDistance")
+              Log.d(TAG, "Using RelativeDistance as Signal Strength: $signalStrength")
+              
+              // Emit signal strength event to React Native
               val eventData = bundleOf(
-                "tagId" to tag.tagID,
+                "tagId" to targetTagId, // Use our target tag ID, not tag.tagID which can be null
                 "signalStrength" to signalStrength,
                 "rssi" to rssi,
+                "relativeDistance" to relativeDistance,
                 "timestamp" to System.currentTimeMillis()
               )
               
-              Log.d(TAG, "Sending signal strength event: $eventData")
+              Log.d(TAG, "=== SIGNAL STRENGTH EVENT EMITTED ===")
+              Log.d(TAG, "Signal Strength: $signalStrength, RSSI: $rssi, TagID: $targetTagId")
               sendEvent("onRfidSignalStrength", eventData)
             }
           }
@@ -304,5 +312,5 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
   
   override fun eventStatusNotify(rfidStatusEvents: RfidStatusEvents?) {
     Log.d(TAG, "RFID status event: ${rfidStatusEvents?.StatusEventData?.statusEventType}")
-  }
+    }
 } 
