@@ -135,6 +135,9 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
         targetTagId = tagId
         isLocating = true
         
+        // Ensure beeper is enabled before starting locate (following MAUI pattern)
+        rfidReader?.Config?.setBeeperVolume(BEEPER_VOLUME.HIGH_BEEP)
+        
         // Start locate tag using exact MAUI SDK API pattern
         // Following: rfidReader.Actions.TagLocationing.Perform(tagPattern, tagMask, null)
         rfidReader?.Actions?.TagLocationing?.Perform(tagId, null, null)
@@ -195,6 +198,73 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
         promise.reject("LOCATE_STOP_ERROR", "Failed to stop locate tag: ${error.message}", error)
       }
     }
+
+    // Configure beeper settings for locate tag mode
+    AsyncFunction("setBeeperEnabled") { enabled: Boolean, promise: Promise ->
+      try {
+        Log.d(TAG, "setBeeperEnabled function called with enabled: $enabled")
+        
+        if (rfidReader?.isConnected != true) {
+          throw Exception("RFID reader is not connected. Please connect first.")
+        }
+        
+        if (enabled) {
+          // Enable beeper with high volume for locate mode
+          rfidReader?.Config?.setBeeperVolume(BEEPER_VOLUME.HIGH_BEEP)
+        } else {
+          // Disable beeper by setting to quiet
+          rfidReader?.Config?.setBeeperVolume(BEEPER_VOLUME.QUIET_BEEP)
+        }
+        
+        val response = mapOf(
+          "status" to "success",
+          "message" to "Beeper ${if (enabled) "enabled" else "disabled"} successfully",
+          "enabled" to enabled,
+          "timestamp" to System.currentTimeMillis()
+        )
+        
+        Log.d(TAG, "setBeeperEnabled responding with: $response")
+        promise.resolve(response)
+        
+      } catch (error: Exception) {
+        Log.e(TAG, "Error in setBeeperEnabled function", error)
+        promise.reject("BEEPER_ERROR", "Failed to configure beeper: ${error.message}", error)
+      }
+    }
+
+    // Test beeper functionality (diagnostic function)
+    AsyncFunction("testBeeper") { promise: Promise ->
+      try {
+        Log.d(TAG, "testBeeper function called")
+        
+        if (rfidReader?.isConnected != true) {
+          throw Exception("RFID reader is not connected. Please connect first.")
+        }
+        
+        // Force beeper configuration and test
+        rfidReader?.Config?.setBeeperVolume(BEEPER_VOLUME.HIGH_BEEP)
+        
+        // Get model name for debugging
+        val modelName = rfidReader?.ReaderCapabilities?.modelName ?: "Unknown"
+        val beeperSupported = rfidReader?.ReaderCapabilities?.modelName?.contains("MC3300") == true ||
+                             rfidReader?.ReaderCapabilities?.modelName?.contains("RFD") == true
+        
+        val response = mapOf(
+          "status" to "success",
+          "message" to "Beeper test completed",
+          "modelName" to modelName,
+          "beeperSupported" to beeperSupported,
+          "timestamp" to System.currentTimeMillis()
+        )
+        
+        Log.d(TAG, "testBeeper responding with: $response")
+        promise.resolve(response)
+        
+      } catch (error: Exception) {
+        Log.e(TAG, "Error in testBeeper function", error)
+        promise.reject("BEEPER_TEST_ERROR", "Failed to test beeper: ${error.message}", error)
+      }
+    }
   }
   
   // Configure reader (following MAUI SDK ConfigureReader pattern)
@@ -228,7 +298,34 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
         val tagFields = arrayOf(TAG_FIELD.PEAK_RSSI, TAG_FIELD.TAG_SEEN_COUNT)
         reader.Config.tagStorageSettings.setTagFields(tagFields)
         
-        Log.d(TAG, "RFID reader configured successfully")
+        // Configure beeper settings (following MAUI pattern)
+        // This enables the built-in Zebra beeping functionality like 123RFID Mobile app
+        // The SDK automatically varies beeping frequency based on signal strength during locate mode
+        reader.Config.setBeeperVolume(BEEPER_VOLUME.HIGH_BEEP)
+        
+        // Additional beeper configuration for MC3300 and other models
+        try {
+          // Enable beeper for locate operations (following MAUI SDK pattern)
+          reader.Config.setBeeperVolume(BEEPER_VOLUME.HIGH_BEEP)
+          
+          // For MC3300 and similar devices, ensure beeper is configured properly
+          val modelName = reader.ReaderCapabilities?.modelName ?: ""
+          Log.d(TAG, "Configuring beeper for model: $modelName")
+          
+          // Apply enhanced beeper configuration for all supported devices
+          // Disable DPO and batch mode for better beeper performance (following MAUI pattern)
+          reader.Config.setBatchMode(BATCH_MODE.DISABLE)
+          reader.Config.dpoState = DYNAMIC_POWER_OPTIMIZATION.DISABLE
+          
+          // Force beeper configuration for all models
+          reader.Config.setBeeperVolume(BEEPER_VOLUME.HIGH_BEEP)
+          
+          Log.d(TAG, "Applied enhanced beeper configuration: disabled batch mode and DPO, set HIGH_BEEP")
+        } catch (e: Exception) {
+          Log.w(TAG, "Could not configure advanced beeper settings: ${e.message}")
+        }
+        
+        Log.d(TAG, "RFID reader configured successfully with beeper enabled")
       }
     } catch (error: Exception) {
       Log.e(TAG, "Error configuring RFID reader", error)
@@ -247,31 +344,16 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
   // RFID Events Listener Implementation (following MAUI SDK pattern)
   override fun eventReadNotify(rfidReadEvents: RfidReadEvents?) {
     try {
-      Log.d(TAG, "EventReadNotify called - isLocating: $isLocating, targetTagId: $targetTagId")
-      
       // Get tags from read event (following MAUI EventReadNotify pattern)
       val tags = rfidReader?.Actions?.getReadTags(100)
       
       if (tags != null && tags.isNotEmpty()) {
-        Log.d(TAG, "Read ${tags.size} tags")
-        
-        // Log all tags for debugging
-        for (tag in tags) {
-          Log.d(TAG, "Tag found: ${tag.tagID}, RSSI: ${tag.peakRSSI}, LocationInfo: ${tag.LocationInfo}")
-        }
-        
         // Process tags for locate mode (following MAUI TagReadEvent pattern)
         if (isLocating && targetTagId != null) {
-          Log.d(TAG, "Processing tags for locate mode - looking for: $targetTagId")
-          
           for (tag in tags) {
-            Log.d(TAG, "Checking tag: ${tag.tagID} vs target: $targetTagId")
-            
             // CRITICAL FIX: In locate mode, LocationInfo presence indicates we found the target tag
             // The tag.tagID can be null in locate mode, but LocationInfo means we found our target
             if (tag.LocationInfo != null) {
-              Log.d(TAG, "=== LOCATE MODE: Found target tag with LocationInfo ===")
-              
               // Use RelativeDistance directly from LocationInfo (this is the 123RFID algorithm output)
               val relativeDistance = tag.LocationInfo.relativeDistance.toInt()
               val rssi = tag.peakRSSI.toInt()
@@ -279,11 +361,6 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
               // The RelativeDistance from LocationInfo is already the 1-100 signal strength
               // This matches exactly what 123RFID Mobile app shows
               val signalStrength = relativeDistance
-              
-              Log.d(TAG, "=== SIGNAL STRENGTH CALCULATION ===")
-              Log.d(TAG, "Raw RSSI: $rssi")
-              Log.d(TAG, "RelativeDistance from LocationInfo: $relativeDistance")
-              Log.d(TAG, "Using RelativeDistance as Signal Strength: $signalStrength")
               
               // Emit signal strength event to React Native
               val eventData = bundleOf(
@@ -294,16 +371,10 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
                 "timestamp" to System.currentTimeMillis()
               )
               
-              Log.d(TAG, "=== SIGNAL STRENGTH EVENT EMITTED ===")
-              Log.d(TAG, "Signal Strength: $signalStrength, RSSI: $rssi, TagID: $targetTagId")
               sendEvent("onRfidSignalStrength", eventData)
             }
           }
-        } else {
-          Log.d(TAG, "Not in locate mode or no target tag set")
         }
-      } else {
-        Log.d(TAG, "No tags read in this event")
       }
     } catch (error: Exception) {
       Log.e(TAG, "Error in eventReadNotify", error)

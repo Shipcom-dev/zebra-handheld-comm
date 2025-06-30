@@ -34,6 +34,8 @@ export interface ExpoZebraRfidModuleInterface {
     getCurrentStatus(): Promise<RfidResponse>;
     startLocateTag(tagId: string): Promise<RfidResponse>;
     stopLocateTag(): Promise<RfidResponse>;
+    setBeeperEnabled(enabled: boolean): Promise<RfidResponse>;
+    testBeeper(): Promise<RfidResponse>;
     addListener(eventName: 'onRfidSignalStrength', listener: (event: RfidSignalStrengthEvent) => void): EventSubscription;
     addListener(eventName: 'onRfidLocateTag', listener: (event: RfidLocateTagEvent) => void): EventSubscription;
     addListener(eventName: 'onRfidConnection', listener: (event: RfidConnectionEvent) => void): EventSubscription;
