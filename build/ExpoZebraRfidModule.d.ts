@@ -8,6 +8,8 @@ export interface RfidResponse {
     readerModel?: string;
     timestamp?: number;
     moduleVersion?: string;
+    isBeeperEnabled?: boolean;
+    signalStrength?: number;
 }
 export interface RfidSignalStrengthEvent {
     tagId: string;
@@ -32,10 +34,14 @@ export interface ExpoZebraRfidModuleInterface {
     hello(name: string): Promise<RfidResponse>;
     connect(): Promise<RfidResponse>;
     getCurrentStatus(): Promise<RfidResponse>;
+    disconnect(): Promise<RfidResponse>;
+    releaseControlToDataWedge(): Promise<RfidResponse>;
+    restartDataWedgeService(): Promise<RfidResponse>;
     startLocateTag(tagId: string): Promise<RfidResponse>;
     stopLocateTag(): Promise<RfidResponse>;
     setBeeperEnabled(enabled: boolean): Promise<RfidResponse>;
     testBeeper(): Promise<RfidResponse>;
+    setBeepingFrequency(signalStrength: number): Promise<RfidResponse>;
     addListener(eventName: 'onRfidSignalStrength', listener: (event: RfidSignalStrengthEvent) => void): EventSubscription;
     addListener(eventName: 'onRfidLocateTag', listener: (event: RfidLocateTagEvent) => void): EventSubscription;
     addListener(eventName: 'onRfidConnection', listener: (event: RfidConnectionEvent) => void): EventSubscription;

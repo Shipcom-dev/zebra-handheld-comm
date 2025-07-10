@@ -83,11 +83,11 @@ export const DEFAULT_RFID_CONFIG = {
       rfid_input_enabled: 'true',
       rfid_selection: 'auto',
       rfid_power_level: '270', // Power level in centi-dBm (27.0 dBm)
-      rfid_session: '1', // Session 1 is typical default
+      rfid_session: '0', // Session 0 to avoid conflicts with native module
       rfid_tag_population: '30', // Estimated number of tags in the field
-      rfid_operation_mode: 'DPO_MODE', // Dynamic Power Optimization mode
-      rfid_trigger_mode: 'rfid_trigger_mode_continuous', // or 'rfid_trigger_mode_press_release'
-      rfid_tag_read_duration: '0', // 0 = continuous until trigger released
+      rfid_operation_mode: 'NORMAL_MODE', // Normal mode instead of DPO for consistency
+      rfid_trigger_mode: 'rfid_trigger_mode_press_release', // Press-release for better control
+      rfid_tag_read_duration: '2000', // 2 seconds duration for more reliable reads
     },
   },
 };

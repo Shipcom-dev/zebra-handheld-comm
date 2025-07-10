@@ -11,6 +11,8 @@ export interface RfidResponse {
   readerModel?: string;
   timestamp?: number;
   moduleVersion?: string;
+  isBeeperEnabled?: boolean;
+  signalStrength?: number;
 }
 
 // Signal strength event matching MAUI SDK TagData.LocationInfo.RelativeDistance
@@ -46,6 +48,9 @@ export interface ExpoZebraRfidModuleInterface {
   // Connection management (following MAUI SDK pattern)
   connect(): Promise<RfidResponse>;
   getCurrentStatus(): Promise<RfidResponse>;
+  disconnect(): Promise<RfidResponse>;
+  releaseControlToDataWedge(): Promise<RfidResponse>;
+  restartDataWedgeService(): Promise<RfidResponse>;
 
   // Locate tag functionality (following MAUI SDK TagLocationing API)
   startLocateTag(tagId: string): Promise<RfidResponse>;
@@ -54,6 +59,7 @@ export interface ExpoZebraRfidModuleInterface {
   // Beeper control for locate mode
   setBeeperEnabled(enabled: boolean): Promise<RfidResponse>;
   testBeeper(): Promise<RfidResponse>;
+  setBeepingFrequency(signalStrength: number): Promise<RfidResponse>;
 
   // Event listeners
   addListener(
