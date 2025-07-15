@@ -56,10 +56,8 @@ export interface ExpoZebraRfidModuleInterface {
   startLocateTag(tagId: string): Promise<RfidResponse>;
   stopLocateTag(): Promise<RfidResponse>;
 
-  // Beeper control for locate mode
-  setBeeperEnabled(enabled: boolean): Promise<RfidResponse>;
+  // Beeper control for locate mode (disabled - no sound)
   testBeeper(): Promise<RfidResponse>;
-  setBeepingFrequency(signalStrength: number): Promise<RfidResponse>;
 
   // Event listeners
   addListener(

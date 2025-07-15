@@ -22,9 +22,9 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
   private var isLocating = false
   private var targetTagId: String? = null
   
-  // Signal strength tracking for built-in beeper control
-  private var lastSignalStrength = 0
-  private var lastBeepTime = 0L
+  // Remove signal strength throttling - revert to ~50ms updates like 123RFID
+  // private var lastSignalUpdateTime = 0L
+  // private val SIGNAL_UPDATE_INTERVAL = 500L // Update every 500ms instead of ~50ms
     
   override fun definition() = ModuleDefinition {
 
@@ -171,8 +171,8 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
         // Reset all state
         isLocating = false
         targetTagId = null
-        lastBeepTime = 0L
-        lastSignalStrength = 0
+        // lastBeepTime = 0L // Removed
+        // lastSignalStrength = 0 // Removed
         
         // Clear references
         rfidReader = null
@@ -209,11 +209,25 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
         isLocating = true
         
         // Reset signal strength tracking
-        lastBeepTime = 0L
-        lastSignalStrength = 0
+        // lastBeepTime = 0L // Removed
+        // lastSignalStrength = 0 // Removed
         
-        // Enable built-in beeper for locate mode
-        rfidReader?.Config?.setBeeperVolume(BEEPER_VOLUME.HIGH_BEEP)
+        // Reset signal update timer for immediate first update
+        // lastSignalUpdateTime = 0L // Removed
+        
+        // CRITICAL: Disable DataWedge to prevent interference during signal strength operations
+        try {
+          val intent = Intent("com.symbol.datawedge.api.ACTION")
+          intent.putExtra("com.symbol.datawedge.api.DISABLE_PLUGIN", "RFID")
+          intent.putExtra("com.symbol.datawedge.api.DISABLE_PLUGIN", "BARCODE")
+          appContext.reactContext?.sendBroadcast(intent)
+          Log.d(TAG, "Disabled DataWedge plugins for signal strength operations")
+        } catch (e: Exception) {
+          Log.w(TAG, "Could not disable DataWedge: ${e.message}")
+        }
+        
+        // Disable beeper for locate mode (no sound)
+        rfidReader?.Config?.setBeeperVolume(BEEPER_VOLUME.QUIET_BEEP)
         
         // Start locate tag using exact MAUI SDK API pattern
         // Following: rfidReader.Actions.TagLocationing.Perform(tagPattern, tagMask, null)
@@ -253,7 +267,7 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
           Log.d(TAG, "TagLocationing.Stop() called successfully")
         }
         
-        // Disable beeper
+        // Disable beeper completely (no sound)
         try {
           rfidReader?.Config?.setBeeperVolume(BEEPER_VOLUME.QUIET_BEEP)
           Log.d(TAG, "Disabled beeper after stopping locate tag")
@@ -261,11 +275,21 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
           Log.w(TAG, "Error disabling beeper: ${e.message}")
         }
         
+        // CRITICAL: Re-enable DataWedge for barcode scanning after signal strength operations
+        try {
+          val intent = Intent("com.symbol.datawedge.api.ACTION")
+          intent.putExtra("com.symbol.datawedge.api.ENABLE_PLUGIN", "BARCODE")
+          appContext.reactContext?.sendBroadcast(intent)
+          Log.d(TAG, "Re-enabled DataWedge barcode scanning after signal strength operations")
+        } catch (e: Exception) {
+          Log.w(TAG, "Could not re-enable DataWedge: ${e.message}")
+        }
+        
         // Reset locate state
         isLocating = false
         targetTagId = null
-        lastBeepTime = 0L
-        lastSignalStrength = 0
+        // lastBeepTime = 0L // Removed
+        // lastSignalStrength = 0 // Removed
         
         val response = mapOf(
           "status" to "success",
@@ -295,8 +319,8 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
           throw Exception("RFID reader is not connected. Please connect first.")
         }
         
-        // Force beeper configuration and test
-        rfidReader?.Config?.setBeeperVolume(BEEPER_VOLUME.HIGH_BEEP)
+        // Disable beeper completely (no sound)
+        rfidReader?.Config?.setBeeperVolume(BEEPER_VOLUME.QUIET_BEEP)
         
         // Test built-in beeper by performing a brief inventory operation
         try {
@@ -321,7 +345,7 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
         
         val response = mapOf(
           "status" to "success",
-          "message" to "Built-in beeper test completed",
+          "message" to "Built-in beeper is disabled (no sound)",
           "modelName" to modelName,
           "timestamp" to System.currentTimeMillis()
         )
@@ -335,33 +359,12 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
       }
     }
 
-    // Set beeping frequency based on signal strength (using built-in beeper only)
-    AsyncFunction("setBeepingFrequency") { signalStrength: Int, promise: Promise ->
-      try {
-        Log.d(TAG, "setBeepingFrequency function called with signalStrength: $signalStrength")
-        
-        if (!isLocating) {
-          throw Exception("Not in locate mode. Start locate tag first.")
-        }
-        
-        // Update beeping based on signal strength using built-in beeper
-        updateBuiltInBeeping(signalStrength)
-        
-        val response = mapOf(
-          "status" to "success",
-          "message" to "Built-in beeping frequency updated for signal strength: $signalStrength",
-          "signalStrength" to signalStrength,
-          "timestamp" to System.currentTimeMillis()
-        )
-        
-        Log.d(TAG, "setBeepingFrequency responding with: $response")
-        promise.resolve(response)
-        
-      } catch (error: Exception) {
-        Log.e(TAG, "Error in setBeepingFrequency function", error)
-        promise.reject("BEEPING_FREQUENCY_ERROR", "Failed to set beeping frequency: ${error.message}", error)
-      }
-    }
+    // Remove setBeepingFrequency function - following 123RFID approach
+    // 123RFID relies purely on automatic beeping during locate operations
+    // No manual frequency control needed
+    // AsyncFunction("setBeepingFrequency") { signalStrength: Int, promise: Promise ->
+    //   // Removed - following 123RFID approach
+    // }
 
     // Release control back to DataWedge for barcode scanning
     AsyncFunction("releaseControlToDataWedge") { promise: Promise ->
@@ -386,7 +389,7 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
           Log.w(TAG, "Error stopping inventory during release: ${e.message}")
         }
         
-        // Step 3: Disable beeper completely
+        // Step 3: Disable beeper completely (no sound)
         try {
           rfidReader?.Config?.setBeeperVolume(BEEPER_VOLUME.QUIET_BEEP)
           Log.d(TAG, "Disabled beeper during release")
@@ -407,8 +410,8 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
         // Step 5: Reset all state
         isLocating = false
         targetTagId = null
-        lastBeepTime = 0L
-        lastSignalStrength = 0
+        // lastBeepTime = 0L // Removed
+        // lastSignalStrength = 0 // Removed
         
         // Step 6: Clear references
         rfidReader = null
@@ -510,8 +513,8 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
         reader.Config.tagStorageSettings.setTagFields(tagFields)
         
         // Configure beeper settings (following MAUI SDK pattern)
-        // Enable built-in Zebra beeper for locate operations
-        reader.Config.setBeeperVolume(BEEPER_VOLUME.HIGH_BEEP)
+        // Disable built-in Zebra beeper for locate operations (no sound)
+        reader.Config.setBeeperVolume(BEEPER_VOLUME.QUIET_BEEP)
         
         // Additional beeper configuration for MC3300 and other models
         try {
@@ -524,66 +527,26 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
           reader.Config.setBatchMode(BATCH_MODE.DISABLE)
           reader.Config.dpoState = DYNAMIC_POWER_OPTIMIZATION.DISABLE
           
-          // Enable built-in beeper for all models
-          reader.Config.setBeeperVolume(BEEPER_VOLUME.HIGH_BEEP)
+          // Disable built-in beeper for all models (no sound)
+          reader.Config.setBeeperVolume(BEEPER_VOLUME.QUIET_BEEP)
           
           Log.d(TAG, "Applied enhanced beeper configuration: disabled batch mode, DPO, enabled built-in beeper")
         } catch (e: Exception) {
           Log.w(TAG, "Could not configure advanced beeper settings: ${e.message}")
         }
         
-        Log.d(TAG, "RFID reader configured successfully with built-in beeper enabled")
+        Log.d(TAG, "RFID reader configured successfully with built-in beeper disabled")
       }
     } catch (error: Exception) {
       Log.e(TAG, "Error configuring RFID reader", error)
     }
   }
 
-  // Signal strength-based beeping control using built-in Zebra beeper only
-  private fun updateBuiltInBeeping(signalStrength: Int) {
-    if (!isLocating) {
-      return
-    }
-
-    val currentTime = System.currentTimeMillis()
-    
-    // Calculate beep interval based on signal strength (like 123RFID app)
-    // Low signal strength (far away) = more frequent beeps
-    // High signal strength (close) = less frequent beeps
-    val beepInterval = when {
-      signalStrength <= 20 -> 200L  // Very weak signal: beep every 200ms
-      signalStrength <= 40 -> 400L  // Weak signal: beep every 400ms
-      signalStrength <= 60 -> 600L  // Medium signal: beep every 600ms
-      signalStrength <= 80 -> 800L  // Strong signal: beep every 800ms
-      else -> 1200L                 // Very strong signal: beep every 1200ms
-    }
-    
-    // Only beep if enough time has passed since last beep
-    if (currentTime - lastBeepTime >= beepInterval) {
-      // Trigger built-in beeper by briefly performing inventory operation
-      triggerBuiltInBeep()
-      lastBeepTime = currentTime
-      lastSignalStrength = signalStrength
-      
-      Log.d(TAG, "Built-in beeping with frequency: ${beepInterval}ms for signal strength: $signalStrength")
-    }
-  }
-
-  // Trigger built-in beeper using a more reliable method
-  private fun triggerBuiltInBeep() {
-    try {
-      // Use a more reliable method to trigger beeper without interfering with locate operations
-      if (targetTagId != null && rfidReader?.isConnected == true) {
-        // Use the built-in beeper configuration that's already set up
-        // The beeper will automatically beep during locate operations
-        // We don't need to perform additional inventory operations
-        
-        Log.d(TAG, "Built-in beeper is configured and will beep automatically during locate operations")
-      }
-    } catch (e: Exception) {
-      Log.w(TAG, "Could not trigger built-in beep: ${e.message}")
-    }
-  }
+  // Remove signal strength-based beeping control - following 123RFID approach
+  // 123RFID relies purely on automatic beeping during locate operations
+  // private fun updateBuiltInBeeping(signalStrength: Int) {
+  //   // Removed - following 123RFID approach
+  // }
   
   // RFID Reader Event Handler Implementation (following MAUI SDK pattern)
   override fun RFIDReaderAppeared(readerDevice: ReaderDevice?) {
@@ -623,19 +586,25 @@ class ExpoZebraRfidModule : Module(), Readers.RFIDReaderEventHandler, RfidEvents
               
               Log.d(TAG, "Target tag found - Signal: $signalStrength, RSSI: $rssi, Distance: $relativeDistance")
               
-              // Update beeping frequency based on signal strength using built-in beeper
-              updateBuiltInBeeping(signalStrength)
-              
-              // Emit signal strength event to React Native
-              val eventData = bundleOf(
-                "tagId" to targetTagId, // Use our target tag ID, not tag.tagID which can be null
-                "signalStrength" to signalStrength,
-                "rssi" to rssi,
-                "relativeDistance" to relativeDistance,
-                "timestamp" to System.currentTimeMillis()
-              )
-              
-              sendEvent("onRfidSignalStrength", eventData)
+              // Throttle signal strength updates to reduce frequency
+              // val currentTime = System.currentTimeMillis()
+              // if (currentTime - lastSignalUpdateTime >= SIGNAL_UPDATE_INTERVAL) {
+              //   lastSignalUpdateTime = currentTime
+                
+                // Emit signal strength event to React Native
+                val eventData = bundleOf(
+                  "tagId" to targetTagId, // Use our target tag ID, not tag.tagID which can be null
+                  "signalStrength" to signalStrength,
+                  "rssi" to rssi,
+                  "relativeDistance" to relativeDistance,
+                  "timestamp" to System.currentTimeMillis()
+                )
+                
+                sendEvent("onRfidSignalStrength", eventData)
+                Log.d(TAG, "Emitted throttled signal strength event: $signalStrength")
+              // } else {
+              //   Log.d(TAG, "Skipped signal strength update (throttled): $signalStrength")
+              // }
             }
           }
           
